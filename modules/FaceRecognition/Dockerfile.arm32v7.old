@@ -1,0 +1,37 @@
+#test later if this may work as well  
+FROM arm32v7/python:3.7-slim-buster
+
+WORKDIR /app
+
+#dependency package / face_recognition
+RUN apt-get update
+RUN apt-get --yes install libatlas-base-dev
+#??
+RUN apt-get --yes install build-essential
+RUN pip3 install --upgrade pip setuptools wheel
+##RUN apt-get --yes install libffi-dev
+
+#upgrade pip, looks like some packages have problems to install with older pip version
+##RUN python -m pip install -U pip
+##RUN apt-get --yes install python3-wheel
+#RUN pip3 install cmake
+
+RUN apt remove cmake
+RUN apt-get --yes install wget
+RUN wget https://cmake.org/files/LatestRelease/cmake-3.19.2.tar.gz
+RUN tar xf cmake-3.19.2.tar.gz
+RUN apt-get--yes install libssl-dev
+RUN apt-get --yes install make
+RUN cd cmake-3.19.2/ && ./configure && make install && cmake --version
+
+RUN pip3 install dlib
+RUN pip3 install face_recognition
+#copy all known images
+COPY images/ ./
+
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
+
+COPY . .
+
+CMD [ "python3", "-u", "./main.py" ]

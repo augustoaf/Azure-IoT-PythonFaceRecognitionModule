@@ -1,0 +1,3 @@
+config/
+.env
+modules/FaceRecognition/images/
