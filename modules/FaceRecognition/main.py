@@ -12,12 +12,14 @@ import threading
 from azure.iot.device.aio import IoTHubModuleClient
 import face_recognition
 
+known_images_path = '/home/pi/workspace/images/known'
+unknown_images_path = '/home/pi/workspace/images/unknown'
+
 async def main():
     try:
         if not sys.version >= "3.5.3":
-            raise Exception( "The sample requires python 3.5.3+. Current version of Python: %s" % sys.version )
-        print ( "IoT Hub Client for Python" )
-
+            raise Exception( "App requires python 3.5.3+. Current version of Python: %s" % sys.version )
+        
         # The client object is used to interact with your Azure IoT hub.
         module_client = IoTHubModuleClient.create_from_edge_environment()
 
@@ -25,7 +27,6 @@ async def main():
         await module_client.connect()
 
         # Define behavior for receiving an input message on input1
-        # Because this is a filter module, we forward this message to the "output1" queue.
         async def input1_listener(module_client):
             print ( "input1_listener")
 
@@ -39,38 +40,89 @@ async def main():
                 try:
                     recognizeFace()
                     time.sleep(15)
-                except:
-                    print ( "expection in") 
+                except Exception as ex:
+                    print ( "Unexpected error in main_listener(): %s" % ex)
                     time.sleep(5)
 
-        # routine to recognize face (if any, a message is sent to iot hub)  
+        #def: list files from a folder and return files array
+        def list_files(input_path):
+            list = [] 
+            for path,dirs,files in os.walk(input_path):
+                for filename in files:
+                    list.append(path+'/'+filename)
+            return list
+
+        #def: load faces from image files and return faces array - input is an array of filenames (with relative path)
+        def load_faces(input_filenames):
+            #load image files
+            images_loaded_list = []
+            for image_filename in input_filenames:
+                try: 
+                    images_loaded_list.append(face_recognition.load_image_file(image_filename))
+                except Exception as ex:
+                    print("wasn't able to load image: " + image_filename)
+                    print ( "Unexpected error in load_faces(): %s" % ex)
+
+            #load faces from images loaded
+            counter = -1
+            faces_list = []
+            for image_loaded in images_loaded_list:
+                counter += 1
+                try:
+                    #assumption to have only one face in the image, so it is getting the first face using the first index [0]
+                    faces_list.append(face_recognition.face_encodings(image_loaded)[0])
+                except Exception as ex:
+                    #TODO test exception
+                    print("wasn't able to locate any faces in image: " + input_filenames[counter])
+                    print ( "Unexpected error in load_faces(): %s" % ex)
+            return faces_list
+
+        #def: routine to recognize face and send result to iot hub 
         def recognizeFace():
             try:
-                print ( "recognize face routine")
+                print ( "RUNNING RECOGNIZE FACE ROUTINE ...")
 
-                picture_of_me = face_recognition.load_image_file("images/augusto.png")
-                my_face_encoding = face_recognition.face_encodings(picture_of_me)[0]
+                #load faces
+                known_images_filename_list = list_files(known_images_path)
+                unknown_images_filename_list = list_files(unknown_images_path)
 
-                # my_face_encoding now contains a universal 'encoding' of my facial features that can be compared to any other picture of a face!
+                print('KNOWN IMAGES FILENAME:')
+                for known_image_filename in known_images_filename_list:
+                    print(known_image_filename)
+                print('UNKNOWN IMAGES FILENAME:')
+                for unknown_image_filename in unknown_images_filename_list:
+                    print(unknown_image_filename)
 
-                unknown_picture = face_recognition.load_image_file("images/augusto2.png")
-                unknown_face_encoding = face_recognition.face_encodings(unknown_picture)[0]
+                known_faces_list = load_faces(known_images_filename_list)
+                unknown_faces_list = load_faces(unknown_images_filename_list)
 
-                # Now we can see the two face encodings are of the same person with `compare_faces`!
+                #loop all unknown faces
+                unknown_counter = -1
+                for unknown_face in unknown_faces_list:
+                    unknown_counter += 1
+                    known_counter = -1
+                    face_found = False
 
-                results = face_recognition.compare_faces([my_face_encoding], unknown_face_encoding)
+                    print('DETECTING FACE ' + unknown_images_filename_list[unknown_counter] + ' ...')
+                    # get results is an array of True/False telling if the unknown face matched anyone in the known faces array
+                    faces_result = face_recognition.compare_faces(known_faces_list, unknown_face)
+                    #loop the results and check if the unknown face has a match
+                    for result in faces_result:
+                        known_counter += 1
+                        if result:
+                            print('UNKNOWN FACE HAS A MATCH: ' + known_images_filename_list[known_counter])
+                            face_found = True
+                            quit
 
-                if results[0] == True:
-                    print("It's a picture of me!")
-                else:
-                    print("It's not a picture of me!")      
+                    if not(face_found):
+                        print('!!!FACE NOT FOUND!!!')
             except Exception as ex:
                 print ( "Unexpected error in recognizeFace(): %s" % ex )
 
         # Schedule task for C2D Listener and twin property
         listeners = asyncio.gather(input1_listener(module_client), twin_patch_listener(module_client))
 
-        print ( "The sample is now waiting for messages. ")
+        print ( "APP READY ")
 
         # "get the current thread loop and execute method"
         loop = asyncio.get_event_loop()
@@ -94,6 +146,5 @@ if __name__ == "__main__":
     ##loop = asyncio.get_event_loop()
     ##loop.run_until_complete(main())
     ##loop.close()
-
     # If using Python 3.7 or above, you can use following code instead:
     asyncio.run(main())

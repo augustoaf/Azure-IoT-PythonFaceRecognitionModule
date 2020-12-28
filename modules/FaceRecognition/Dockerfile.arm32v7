@@ -1,4 +1,3 @@
-#docker hub version 1.4-arm32
 #first time install/build ~6hours (using Intel Core i7 2ghz 64 bits); push to docker hub ~3hours
 FROM arm32v7/python:3.7-slim-buster
 
@@ -33,8 +32,6 @@ RUN cd ~ && \
     python3 setup.py install --yes USE_AVX_INSTRUCTIONS
 
 WORKDIR /app
-#copy all known images
-COPY images/ ./
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 #face recognition lib inside requirements.txt was ignored (check later what was wrong)

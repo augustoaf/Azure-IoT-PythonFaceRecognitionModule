@@ -1,0 +1,8 @@
+requirements to app using face_recognition lib: cmake, dlib and face_recognition
+
+usually the steps below works:
+apt-get update
+apt-get --yes install libatlas-base-dev
+pip3 install cmake
+pip3 install dlib
+pip3 install face_recognition
