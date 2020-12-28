@@ -5,7 +5,6 @@ import os
 
 known_images_path = '/home/pi/workspace/images/known'
 unknown_images_path = '/home/pi/workspace/images/unknown'
-unknown_image_filename = unknown_images_path + '/' + 'image.jpg'
 
 #def: list files from a folder and return files array
 def list_files(input_path):
@@ -44,9 +43,10 @@ def load_faces(input_filenames):
 known_images_filename_list = list_files(known_images_path)
 unknown_images_filename_list = list_files(unknown_images_path)
 
+print('known images filename:')
 for known_image_filename in known_images_filename_list:
   print(known_image_filename)
-
+print('unknown images filename:')
 for unknown_image_filename in unknown_images_filename_list:
   print(unknown_image_filename)
 
