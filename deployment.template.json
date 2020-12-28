@@ -58,7 +58,7 @@
             "restartPolicy": "always",
             "settings": {
               "image": "${MODULES.FaceRecognition}",
-              "createOptions": {}
+              "createOptions": "{\"HostConfig\":{\"Binds\":[\"/home/pi/workspace/images/:/home/pi/workspace/images/\"]}}"
             }
           }
         }

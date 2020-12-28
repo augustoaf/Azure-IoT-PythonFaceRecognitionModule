@@ -57,17 +57,20 @@ async def main():
             #load image files
             counter = -1
             images_loaded_list = []
-            for image_filename in input_filenames:
+
+            #clone list in order to iterate the array, once the original list can have filenames removed if can't load an image
+            tmp_input_filenames = input_filenames.copy()
+            for image_filename in tmp_input_filenames:
                 counter += 1
                 try: 
                     images_loaded_list.append(face_recognition.load_image_file(image_filename))
                 except Exception as ex:
                     print("wasn't able to load image: " + image_filename)
-                    print ( "Unexpected error in load_faces(): %s" % ex)
-                    #once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match the contents in faces_list array,
-                    #otherwise the results will mismatch the index for matching faces
+                    #print ( "Unexpected error in load_faces(): %s" % ex)
+                    #once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match
+                    #the contents in faces_list array, otherwise the results will mismatch the index for matching faces
                     input_filenames.pop(counter)
-                    #decrease the counter to match input_filenames array index in the next loop
+                    #decrease the counter once the current item wasn't appended, otherwise the next pop won't work as expected
                     counter -= 1
 
             #load faces from images loaded
@@ -80,19 +83,36 @@ async def main():
                     faces_list.append(face_recognition.face_encodings(image_loaded)[0])
                 except Exception as ex:
                     print("wasn't able to locate any faces in image: " + input_filenames[counter])
-                    print ( "Unexpected error in load_faces(): %s" % ex)
-                    #once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match the contents in faces_list array,
-                    #otherwise the results will mismatch the index for matching faces
+                    #print ( "Unexpected error in load_faces(): %s" % ex)
+                    #once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match
+                    # the contents in faces_list array, otherwise the results will mismatch the index for matching faces
                     input_filenames.pop(counter)
-                    #decrease the counter to match input_filenames array index in the next loop
+                    #decrease the counter once the current item wasn't appended, otherwise the next pop won't work as expected
                     counter -= 1
 
             return faces_list
 
+        #def: send message to output1 (message_body can be a string, json, etc)
+        def send_message(message_body):
+            try:
+                ##message = IoTHubMessage(msg_txt_formatted)
+                message = message_body
+                # Add a custom application property to the message.
+                ##prop_map = message.properties()
+                ##prop_map.add("source", "edgeRaspberryPI")
+
+                # Send the message.
+                #print( "Sending message: %s" % message.get_string() )
+                print( "Sending message: %s" % message)
+                module_client.send_message_to_output(message, "output1")
+                print( "Message sent!\n" )
+            except Exception as ex:
+                print ( "Unexpected error: %s " % ex )
+
         #def: routine to recognize face and send result to iot hub 
         def recognizeFace():
             try:
-                print ( "RUNNING RECOGNIZE FACE ROUTINE ...")
+                print ( "RUNNING RECOGNIZE FACE ROUTINE ...\n")
 
                 #load faces
                 known_images_filename_list = list_files(known_images_path)
@@ -104,7 +124,8 @@ async def main():
                 print('UNKNOWN IMAGES FILENAME:')
                 for unknown_image_filename in unknown_images_filename_list:
                     print(unknown_image_filename)
-
+                print ( "\n")
+                
                 known_faces_list = load_faces(known_images_filename_list)
                 unknown_faces_list = load_faces(unknown_images_filename_list)
 
@@ -114,20 +135,32 @@ async def main():
                     unknown_counter += 1
                     known_counter = -1
                     face_found = False
+                    unknown_filename = unknown_images_filename_list[unknown_counter]
 
-                    print('DETECTING FACE ' + unknown_images_filename_list[unknown_counter] + ' ...')
+                    print('DETECTING FACE ' + unknown_filename + ' ...')
                     # get results is an array of True/False telling if the unknown face matched anyone in the known faces array
                     faces_result = face_recognition.compare_faces(known_faces_list, unknown_face)
                     #loop the results and check if the unknown face has a match
                     for result in faces_result:
                         known_counter += 1
                         if result:
-                            print('UNKNOWN FACE HAS A MATCH: ' + known_images_filename_list[known_counter])
+                            known_filename = known_images_filename_list[known_counter]
+                            print('MATCH IS ' + known_filename)
                             face_found = True
+                            #send message to output1 in order to route to iot hub
+                            message_body = 'face found for ' + unknown_filename + '. Match is ' + known_filename
+                            #execution_result = asyncio.get_event_loop().run_until_complete(send_message(message_body))
+                            send_message(message_body)
                             quit
 
                     if not(face_found):
-                        print('!!!FACE NOT FOUND!!!')
+                        print('*** FACE NOT FOUND ***')
+                        #send message to output1 in order to route to iot hub
+                        message_body = 'face not found for ' + unknown_filename
+                        #execution_result = asyncio.get_event_loop().run_until_complete(send_message(message_body))
+                        send_message(message_body)
+                    print ( "\n")
+                    
             except Exception as ex:
                 print ( "Unexpected error in recognizeFace(): %s" % ex )
 

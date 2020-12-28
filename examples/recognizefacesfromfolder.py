@@ -20,14 +20,15 @@ def load_faces(input_filenames):
 	#load image files
 	counter = -1
 	images_loaded_list = []
-	for image_filename in input_filenames:
+	tmp_input_filenames = input_filenames.copy()
+	for image_filename in tmp_input_filenames:
 		counter += 1
 		try: 
 			images_loaded_list.append(face_recognition.load_image_file(image_filename))
 		except:
 			print("wasn't able to load image: " + image_filename)
 			#once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match the contents in faces_list array,
-			#otherwise the results will mismatch the index for matching faces
+                        #otherwise the results will mismatch the index for matching faces
 			input_filenames.pop(counter)
 			#decrease the counter to match the input_filenames array index in the next loop
 			counter -= 1
