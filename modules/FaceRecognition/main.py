@@ -55,13 +55,20 @@ async def main():
         #def: load faces from image files and return faces array - input is an array of filenames (with relative path)
         def load_faces(input_filenames):
             #load image files
+            counter = -1
             images_loaded_list = []
             for image_filename in input_filenames:
+                counter += 1
                 try: 
                     images_loaded_list.append(face_recognition.load_image_file(image_filename))
                 except Exception as ex:
                     print("wasn't able to load image: " + image_filename)
                     print ( "Unexpected error in load_faces(): %s" % ex)
+                    #once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match the contents in faces_list array,
+                    #otherwise the results will mismatch the index for matching faces
+                    input_filenames.pop(counter)
+                    #decrease the counter to match input_filenames array index in the next loop
+                    counter -= 1
 
             #load faces from images loaded
             counter = -1
@@ -72,9 +79,14 @@ async def main():
                     #assumption to have only one face in the image, so it is getting the first face using the first index [0]
                     faces_list.append(face_recognition.face_encodings(image_loaded)[0])
                 except Exception as ex:
-                    #TODO test exception
                     print("wasn't able to locate any faces in image: " + input_filenames[counter])
                     print ( "Unexpected error in load_faces(): %s" % ex)
+                    #once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match the contents in faces_list array,
+                    #otherwise the results will mismatch the index for matching faces
+                    input_filenames.pop(counter)
+                    #decrease the counter to match input_filenames array index in the next loop
+                    counter -= 1
+
             return faces_list
 
         #def: routine to recognize face and send result to iot hub 
