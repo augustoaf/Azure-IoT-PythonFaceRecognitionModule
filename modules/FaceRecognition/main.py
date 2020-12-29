@@ -28,7 +28,16 @@ async def main():
 
         # Define behavior for receiving an input message on input1
         async def input1_listener(module_client):
-            print ( "input1_listener")
+            while True:
+                try:
+                    input_message = await module_client.receive_message_on_input("input1")  # blocking call - instructions below are executed when message on input1 received
+                    print ( "EXECUTION OF input1_listener")
+                    message = input_message.data
+                    message_text = message.decode('utf-8')
+                    if message_text=='newImage':
+                        await recognizeFace()
+                except Exception as ex:
+                    print ( "Unexpected error in input1_listener: %s" % ex )
 
         # twin_patch_listener is invoked when the module twin's desired properties are updated.
         async def twin_patch_listener(module_client):
@@ -38,11 +47,11 @@ async def main():
         def main_listener():
             while True:
                 try:
-                    recognizeFace()
-                    time.sleep(15)
+                    #print ('running main_listener every 60sec')
+                    time.sleep(60)
                 except Exception as ex:
                     print ( "Unexpected error in main_listener(): %s" % ex)
-                    time.sleep(5)
+                    time.sleep(30)
 
         #def: list files from a folder and return files array
         def list_files(input_path):
@@ -66,7 +75,7 @@ async def main():
                     images_loaded_list.append(face_recognition.load_image_file(image_filename))
                 except Exception as ex:
                     print("wasn't able to load image: " + image_filename)
-                    #print ( "Unexpected error in load_faces(): %s" % ex)
+                    #print ("Unexpected error in load_faces(): %s" % ex)
                     #once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match
                     #the contents in faces_list array, otherwise the results will mismatch the index for matching faces
                     input_filenames.pop(counter)
@@ -80,7 +89,8 @@ async def main():
                 counter += 1
                 try:
                     #assumption to have only one face in the image, so it is getting the first face using the first index [0]
-                    faces_list.append(face_recognition.face_encodings(image_loaded)[0])
+                    tmp_faces = face_recognition.face_encodings(image_loaded)
+                    faces_list.append(tmp_faces[0])
                 except Exception as ex:
                     print("wasn't able to locate any faces in image: " + input_filenames[counter])
                     #print ( "Unexpected error in load_faces(): %s" % ex)
@@ -93,24 +103,15 @@ async def main():
             return faces_list
 
         #def: send message to output1 (message_body can be a string, json, etc)
-        def send_message(message_body):
+        async def send_message(message_body):
             try:
-                ##message = IoTHubMessage(msg_txt_formatted)
                 message = message_body
-                # Add a custom application property to the message.
-                ##prop_map = message.properties()
-                ##prop_map.add("source", "edgeRaspberryPI")
-
-                # Send the message.
-                #print( "Sending message: %s" % message.get_string() )
-                print( "Sending message: %s" % message)
-                module_client.send_message_to_output(message, "output1")
-                print( "Message sent!\n" )
+                await module_client.send_message_to_output(message, "output1")
             except Exception as ex:
                 print ( "Unexpected error: %s " % ex )
 
         #def: routine to recognize face and send result to iot hub 
-        def recognizeFace():
+        async def recognizeFace():
             try:
                 print ( "RUNNING RECOGNIZE FACE ROUTINE ...\n")
 
@@ -120,10 +121,10 @@ async def main():
 
                 print('KNOWN IMAGES FILENAME:')
                 for known_image_filename in known_images_filename_list:
-                    print(known_image_filename)
+                    print(return_lasttextsplit(known_image_filename))
                 print('UNKNOWN IMAGES FILENAME:')
                 for unknown_image_filename in unknown_images_filename_list:
-                    print(unknown_image_filename)
+                    print(return_lasttextsplit(unknown_image_filename))
                 print ( "\n")
                 
                 known_faces_list = load_faces(known_images_filename_list)
@@ -135,7 +136,7 @@ async def main():
                     unknown_counter += 1
                     known_counter = -1
                     face_found = False
-                    unknown_filename = unknown_images_filename_list[unknown_counter]
+                    unknown_filename = return_lasttextsplit(unknown_images_filename_list[unknown_counter])
 
                     print('DETECTING FACE ' + unknown_filename + ' ...')
                     # get results is an array of True/False telling if the unknown face matched anyone in the known faces array
@@ -144,52 +145,46 @@ async def main():
                     for result in faces_result:
                         known_counter += 1
                         if result:
-                            known_filename = known_images_filename_list[known_counter]
+                            known_filename = return_lasttextsplit(known_images_filename_list[known_counter])
                             print('MATCH IS ' + known_filename)
                             face_found = True
                             #send message to output1 in order to route to iot hub
                             message_body = 'face found for ' + unknown_filename + '. Match is ' + known_filename
-                            #execution_result = asyncio.get_event_loop().run_until_complete(send_message(message_body))
-                            send_message(message_body)
+                            await send_message(message_body)
                             quit
 
                     if not(face_found):
                         print('*** FACE NOT FOUND ***')
                         #send message to output1 in order to route to iot hub
                         message_body = 'face not found for ' + unknown_filename
-                        #execution_result = asyncio.get_event_loop().run_until_complete(send_message(message_body))
-                        send_message(message_body)
+                        await send_message(message_body)
                     print ( "\n")
                     
             except Exception as ex:
                 print ( "Unexpected error in recognizeFace(): %s" % ex )
 
-        # Schedule task for C2D Listener and twin property
-        listeners = asyncio.gather(input1_listener(module_client), twin_patch_listener(module_client))
+        def return_lasttextsplit(text):
+            result = text
+            try:
+                separator = '/'
+                text_split = text.split(separator)
+                result = text_split[len(text_split)-1]
+            except:
+                result = text
+            return result
+
+        # Schedule task for input module listener and twin property
+        asyncio.gather(input1_listener(module_client), twin_patch_listener(module_client))
 
         print ( "APP READY ")
 
-        # "get the current thread loop and execute method"
+        # execute main_listener in another thread
         loop = asyncio.get_event_loop()
-        ##user_finished = loop.run_in_executor(None, main_listener)
         loop.run_in_executor(None, main_listener)
-
-        # Wait for user to indicate they are done listening for messages
-        ##await user_finished
-
-        # Cancel listening
-        ##listeners.cancel()
-
-        # Finally, disconnect
-        ##await module_client.disconnect()
 
     except Exception as e:
         print ( "Unexpected error %s " % e )
         raise
 
 if __name__ == "__main__":
-    ##loop = asyncio.get_event_loop()
-    ##loop.run_until_complete(main())
-    ##loop.close()
-    # If using Python 3.7 or above, you can use following code instead:
     asyncio.run(main())
