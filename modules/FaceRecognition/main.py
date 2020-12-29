@@ -5,6 +5,7 @@
 import json
 import time
 import os
+import shutil
 import sys
 import asyncio
 from six.moves import input
@@ -14,6 +15,7 @@ import face_recognition
 
 known_images_path = '/home/pi/workspace/images/known'
 unknown_images_path = '/home/pi/workspace/images/unknown'
+processed_images_path = '/home/pi/workspace/images/processed'
 
 async def main():
     try:
@@ -41,7 +43,7 @@ async def main():
 
         # twin_patch_listener is invoked when the module twin's desired properties are updated.
         async def twin_patch_listener(module_client):
-            print ( "twin_patch_listener")
+            print ( "\n")
         
         # define main listener
         def main_listener():
@@ -61,7 +63,7 @@ async def main():
                     list.append(path+'/'+filename)
             return list
 
-        #def: load faces from image files and return faces array - input is an array of filenames (with relative path)
+        #def: load faces from image files and return faces array - input is an array of filenames (with absolute path)
         def load_faces(input_filenames):
             #load image files
             counter = -1
@@ -75,6 +77,7 @@ async def main():
                     images_loaded_list.append(face_recognition.load_image_file(image_filename))
                 except Exception as ex:
                     print("wasn't able to load image: " + image_filename)
+                    move_file_to_processed_folder(input_filenames[counter])
                     #print ("Unexpected error in load_faces(): %s" % ex)
                     #once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match
                     #the contents in faces_list array, otherwise the results will mismatch the index for matching faces
@@ -93,6 +96,7 @@ async def main():
                     faces_list.append(tmp_faces[0])
                 except Exception as ex:
                     print("wasn't able to locate any faces in image: " + input_filenames[counter])
+                    move_file_to_processed_folder(input_filenames[counter])
                     #print ( "Unexpected error in load_faces(): %s" % ex)
                     #once the item was not appended to the array, remove its ocurrence from the input_filenames array in order to match
                     # the contents in faces_list array, otherwise the results will mismatch the index for matching faces
@@ -113,7 +117,7 @@ async def main():
         #def: routine to recognize face and send result to iot hub 
         async def recognizeFace():
             try:
-                print ( "RUNNING RECOGNIZE FACE ROUTINE ...\n")
+                print ( "\n RUNNING RECOGNIZE FACE ROUTINE ... \n")
 
                 #load faces
                 known_images_filename_list = list_files(known_images_path)
@@ -121,10 +125,10 @@ async def main():
 
                 print('KNOWN IMAGES FILENAME:')
                 for known_image_filename in known_images_filename_list:
-                    print(return_lasttextsplit(known_image_filename))
+                    print(return_last_text_split(known_image_filename))
                 print('UNKNOWN IMAGES FILENAME:')
                 for unknown_image_filename in unknown_images_filename_list:
-                    print(return_lasttextsplit(unknown_image_filename))
+                    print(return_last_text_split(unknown_image_filename))
                 print ( "\n")
                 
                 known_faces_list = load_faces(known_images_filename_list)
@@ -136,7 +140,8 @@ async def main():
                     unknown_counter += 1
                     known_counter = -1
                     face_found = False
-                    unknown_filename = return_lasttextsplit(unknown_images_filename_list[unknown_counter])
+                    unknown_filename = return_last_text_split(unknown_images_filename_list[unknown_counter])
+                    unknown_filename_absolute_path = unknown_images_filename_list[unknown_counter]
 
                     print('DETECTING FACE ' + unknown_filename + ' ...')
                     # get results is an array of True/False telling if the unknown face matched anyone in the known faces array
@@ -145,7 +150,7 @@ async def main():
                     for result in faces_result:
                         known_counter += 1
                         if result:
-                            known_filename = return_lasttextsplit(known_images_filename_list[known_counter])
+                            known_filename = return_last_text_split(known_images_filename_list[known_counter])
                             print('MATCH IS ' + known_filename)
                             face_found = True
                             #send message to output1 in order to route to iot hub
@@ -158,12 +163,14 @@ async def main():
                         #send message to output1 in order to route to iot hub
                         message_body = 'face not found for ' + unknown_filename
                         await send_message(message_body)
+                    
+                    move_file_to_processed_folder(unknown_filename_absolute_path)
                     print ( "\n")
                     
             except Exception as ex:
                 print ( "Unexpected error in recognizeFace(): %s" % ex )
 
-        def return_lasttextsplit(text):
+        def return_last_text_split(text):
             result = text
             try:
                 separator = '/'
@@ -172,6 +179,15 @@ async def main():
             except:
                 result = text
             return result
+
+        #source must be the filename with absolute path; passing the filename to destination will force overwrite if file already exists 
+        def move_file_to_processed_folder(source):
+            try:
+                filename = return_last_text_split(source)
+                destination = processed_images_path
+                shutil.move(source, destination+'/'+filename)
+            except Exception as ex:
+                print ( "wasn't able to move the file to processed folder. Exception: %s" % ex)
 
         # Schedule task for input module listener and twin property
         asyncio.gather(input1_listener(module_client), twin_patch_listener(module_client))

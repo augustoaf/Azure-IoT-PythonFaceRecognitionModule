@@ -31,7 +31,7 @@ TODO (improvements)
 - Try use the most recent version of dlib
 - The paths to known and unkown images are hardcoded, move this to environment variables (the bind must reflect it)
 - When module start, there is an error in input1_listener method (although it is not impacting anything)
-
+- move images processed to images/processed folder
 
 Reference:
 face_recognition page
