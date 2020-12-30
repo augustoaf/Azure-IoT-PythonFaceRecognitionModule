@@ -4,6 +4,7 @@ There is a routine triggered by a specific input message received on module, tha
 
 Assumptions: 
 - The code is handling images with only one face. 
+- The image could not be upsidedown (or 90º rotation)
 - The app must access the images folder in the host OS, so it is necessary to bind the folder to Docker container have access.
 Set Docker create parameters as below. Tip: check/validate the parameter using docker inspect <container id>:
 {
@@ -31,6 +32,12 @@ TODO (improvements)
 - Try use the most recent version of dlib
 - The image paths are hardcoded, move this to environment variables (the bind must reflect it)
 - When module start, there is an error in input1_listener method (although it is not impacting anything)
+- Trick (TODO - investigate more): Faces could not be located when using images from cellphones (high resolution problem (?)), although:
+same images sent through whatsapp works (whatsapp lower the quality);
+screenshot (take from the own cellphone) from the images worked (lower the quality as well);
+also using the Photo Editor (google drive) to Save As wroked as well (looks like lower the quality as well);
+Possible problems: high definition of images (the originals are greater in size) 
+
 
 Reference:
 face_recognition page
